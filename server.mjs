@@ -23,7 +23,7 @@ const server = http.createServer(async (req, res) => {
     }
     const file = files[url.pathname];
     if (!file) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': file[1] + '; charset=utf-8' });
+    res.writeHead(200, { 'Content-Type': file[1] + '; charset=utf-8', 'Cache-Control': 'no-cache' });
     res.end(await readFile(fileURLToPath(new URL('./public/' + file[0], import.meta.url))));
   } catch (error) {
     res.writeHead(502, { 'Content-Type': 'application/json' });
