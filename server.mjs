@@ -6,9 +6,14 @@ const backend = 'https://two026-it4200-fall.onrender.com';
 const files = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  const prefix = '/classproject';
+  if (url.pathname === prefix) {
+    res.writeHead(308, { Location: prefix + '/' + url.search }); res.end(); return;
+  }
+  if (url.pathname.startsWith(prefix + '/')) url.pathname = url.pathname.slice(prefix.length);
   if (req.method !== 'GET') { res.writeHead(405); res.end('Method not allowed'); return; }
   try {
-    if (url.pathname.startsWith('/api/backend')) {
+    if ((url.pathname === '/api/backend' || url.pathname.startsWith('/api/backend/'))) {
       const path = url.pathname.slice('/api/backend'.length) || '/';
       if (!path.startsWith('/') || path.startsWith('//')) { res.writeHead(400); res.end(); return; }
       const response = await fetch(backend + path + url.search, { signal: AbortSignal.timeout(60000), redirect: 'error' });

@@ -17,3 +17,7 @@ The Node server serves the frontend and forwards GET requests through `/api/back
 Favorites and recent activities are stored in the visitor's browser. Game outcomes come from the live API; no accounts, real-money wagering, or score submission are included. The Render backend may need up to a minute to wake up. Errors and timeouts are displayed in the activity dialog.
 
 Activity definitions and input fields live in `public/app.js`; styling is in `public/style.css`. Fonts load from Google Fonts, with system fallbacks.
+
+## Deployment
+
+Railway runs `npm start` from `main`; `npm run check` validates syntax. The app supports both `/` locally and `/classproject/` in production. `/classproject` redirects to the trailing slash so relative assets, home links, and same-origin API requests resolve correctly. Cloudflare routes only `croftfamily.us/classproject` and `croftfamily.us/classproject/*` to the dedicated Railway service. Existing DNS and other routes are preserved.
