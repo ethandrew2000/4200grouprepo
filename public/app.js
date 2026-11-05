@@ -35,7 +35,7 @@ function render(){
     const body=el('div','card-body');body.append(el('span','card-label',a.category==='Fortune'?'Fortune & luck':a.category==='Tools'?'Tools':a.category),el('h3','',a.name),el('p','',a.description));const bottom=el('div','card-bottom');const play=el('button','play','Open activity');play.setAttribute('aria-label',`Open ${a.name}`);play.onclick=()=>openActivity(a);bottom.append(play);body.append(bottom);card.append(art,body);$('cards').append(card);
   }
 }
-function openActivity(a){clearDice();clearActivityEffect();selected=a;requestId++;$('modal-category').textContent=a.category==='Fortune'?'FORTUNE & LUCK':a.category.toUpperCase();$('modal-title').textContent=a.name;$('modal-description').textContent=a.description;$('activity-fields').replaceChildren();$('activity-result').replaceChildren();$('play-button').textContent=a.action;$('play-button').disabled=false;
+function openActivity(a){clearDice();clearActivityEffect();selected=a;$('activity-dialog').classList.toggle('race-dialog',a.id==='horse-race');requestId++;$('modal-category').textContent=a.category==='Fortune'?'FORTUNE & LUCK':a.category.toUpperCase();$('modal-title').textContent=a.name;$('modal-description').textContent=a.description;$('activity-fields').replaceChildren();$('activity-result').replaceChildren();$('play-button').textContent=a.action;$('play-button').disabled=false;
   for(const [name,label,type,placeholder] of a.fields||[]){const wrapper=el('label','',label);const input=el(type==='select'?'select':'input');input.name=name;input.required=true;if(type==='select'){placeholder.forEach(choice=>{const option=el('option','',choice[0].toUpperCase()+choice.slice(1));option.value=choice;input.append(option)})}else{input.type=type;input.placeholder=placeholder;if(type==='number'){input.step='1';input.min='-2147483648';input.max='2147483647'}}wrapper.append(input);$('activity-fields').append(wrapper)}
   $('activity-dialog').showModal();
 }
@@ -168,18 +168,30 @@ function startActivityEffect(activity){
       }else if(kind==='race'){
         const entries=raceEntries(result);if(!entries.length)return;
         art.replaceChildren();art.setAttribute('aria-hidden','false');art.classList.add('race-track');
+        const marquee=el('div','race-marquee');marquee.append(el('span','','STEP RIGHT UP'),el('strong','','DERBY NIGHT'),el('span','','16 HORSES / ONE WINNER'));
+        const board=el('div','derby-board'),rail=el('div','derby-rail');rail.append(el('span','','START'),el('span','','FINISH'));
+        board.append(rail);art.append(marquee,board);
+        const colors=['#bc3f32','#387680','#bc8b29','#6c598c','#477448','#bb6442','#52669a','#9c4d6b'];
         const lanes=entries.map(entry=>{
-          const lane=el('div','race-lane'),name=el('span','race-name',entry.name),course=el('div','race-course'),horse=el('span','race-runner',String(Object.keys(result.Horses||{}).find(k=>result.Horses[k]===entry.name)||entry.rank));
-          course.append(horse);lane.append(name,course);art.append(lane);return {...entry,horse,course};
-        });
-        caption.textContent='And they are off!';
+          const number=Number(Object.keys(result.Horses||{}).find(k=>result.Horses[k]===entry.name)||entry.rank);
+          const lane=el('div','derby-lane'),label=el('div','derby-label'),course=el('div','derby-course'),horse=el('div','derby-runner'),figure=el('div','derby-horse');
+          lane.style.setProperty('--silk',colors[(number-1)%colors.length]);
+          label.append(el('span','derby-number',String(number)),el('span','derby-name',entry.name));
+          // Original flat cutout, like the painted horses on a carnival racing cabinet.
+          figure.innerHTML='<svg viewBox="0 0 120 80" aria-hidden="true"><path fill="currentColor" d="M18 36 Q9 28 2 44 Q10 36 20 46 L27 53 Q49 65 72 49 L86 32 L98 35 L113 29 L110 21 L98 15 L95 4 L88 13 L81 12 L75 26 L66 32 Q42 24 25 34Z"/><path fill="#302a25" d="M76 26 L81 12 L88 13 L83 30Z"/><path fill="var(--silk)" d="M44 30 L66 32 L63 48 L42 47Z"/><path fill="#f8efd9" d="M89 16 L91 19 L89 21 L87 19Z"/><g class="horse-leg-front" stroke="currentColor" stroke-width="7" fill="none"><path d="M69 46 L82 61 L99 64"/><path d="M64 48 L62 65 L77 73"/></g><g class="horse-leg-back" stroke="currentColor" stroke-width="7" fill="none"><path d="M29 46 L20 60 L5 63"/><path d="M35 49 L41 66 L27 74"/></g></svg>';
+          horse.append(figure,el('span','horse-saddle',String(number)));course.append(horse);lane.append(label,course);board.append(lane);
+          return {...entry,number,lane,figure,horse,course};
+        }).sort((a,b)=>a.number-b.number);
+        for(const lane of lanes)board.append(lane.lane);
+        if(!reduced){for(const word of ['On your marks','Ready','GO!']){caption.textContent=word;await animate(caption,[{opacity:.3,transform:'scale(.95)'},{opacity:1,transform:'scale(1)'}],{duration:550});if(cancelled)return;}}
+        caption.textContent='And they are off!';root.classList.add('race-running');
         await Promise.all(lanes.map(entry=>{
-          const midRank=Object.keys(result.Middle||{}).find(k=>result.Middle[k]===entry.name);
-          const startRank=Object.keys(result.Horses||{}).find(k=>result.Horses[k]===entry.name);
-          const width=Math.max(0,entry.course.clientWidth-26),end='translateX('+width+'px)';entry.horse.style.transform=end;
-          return animate(entry.horse,[{transform:'translateX(0)'},{transform:'translateX('+width*(.15+(17-Number(startRank||entry.rank))*.008)+'px)',offset:.25},{transform:'translateX('+width*(.45+(17-Number(midRank||entry.rank))*.014)+'px)',offset:.6},{transform:end}],{duration:2400+entry.rank*85,easing:'linear'});
+          const midRank=Number(Object.keys(result.Middle||{}).find(k=>result.Middle[k]===entry.name)||entry.rank);
+          const width=Math.max(0,entry.course.clientWidth-65),end='translateX('+width+'px)';entry.horse.style.transform=end;
+          loop(entry.figure,[{transform:'translateY(0) rotate(-2deg)'},{transform:'translateY(-4px) rotate(2deg)'},{transform:'translateY(0) rotate(-2deg)'}],280+entry.number*9);
+          return animate(entry.horse,[{transform:'translateX(0)'},{transform:'translateX('+width*(.16+(17-entry.number)*.008)+'px)',offset:.22},{transform:'translateX('+width*(.44+(17-midRank)*.013)+'px)',offset:.58},{transform:'translateX('+width*.84+'px)',offset:.88},{transform:end}],{duration:5700+entry.rank*120,easing:'linear'}).then(()=>{if(!cancelled){entry.lane.classList.add('horse-finished');if(entry.rank===1){entry.lane.classList.add('derby-winner');caption.textContent='Winner: '+entry.name;}}});
         }));
-        if(cancelled)return;caption.textContent='Winner: '+entries[0].name;
+        if(cancelled)return;for(const animation of animations)animation.cancel();root.classList.add('race-complete');caption.textContent='Winner: '+entries[0].name;
         output.append(el('ol','race-standings'));
         for(const entry of entries)output.firstChild.append(el('li','',entry.name));
       }else if(kind==='cookie'){

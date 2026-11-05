@@ -5,8 +5,8 @@ const vm=require('node:vm');
 const source=fs.readFileSync('public/app.js','utf8');
 const effects=source.slice(source.indexOf('let activeEffect='),source.indexOf('function renderValue'));
 class Element{
-  constructor(tag,cls,text){this.tag=tag;this.className=cls;this.textContent=text;this.children=[];this.style={};this.clientWidth=200;this.classes=new Set();this.classList={add:value=>this.classes.add(value)};this.animations=[];}
-  append(...nodes){this.children.push(...nodes)}
+  constructor(tag,cls,text){this.tag=tag;this.className=cls;this.textContent=text;this.children=[];this.style={setProperty(key,value){this[key]=value}};this.clientWidth=200;this.classes=new Set();this.classList={add:value=>this.classes.add(value)};this.animations=[];}
+  append(...nodes){for(const node of nodes){if(node.parent)node.parent.children=node.parent.children.filter(child=>child!==node);node.parent=this;this.children.push(node)}}
   replaceChildren(...nodes){this.children=nodes}
   get firstChild(){return this.children[0]}
   get lastChild(){return this.children.at(-1)}
@@ -27,3 +27,17 @@ for(const reduced of [false,true]){
 test('invalid coin response fails instead of inventing an outcome',async()=>{const {run}=setup();await assert.rejects(run("startActivityEffect({id:'coinflip/{choice}'}).settle({result:'invalid'})"));});
 test('close during settling prevents a late race result',async()=>{const {run}=setup();await run("var effect=startActivityEffect({id:'horse-race'});var pending=effect.settle({End:{1:'Winner'}});clearActivityEffect();pending");assert.equal(run('activeEffect'),null);});
 test('text activities have no forced animation',()=>{const {run}=setup();for(const id of ['dad-joke-daniel','random-fact','riddle','api/slugify','studyTip','luckyNumber','even-or-odd/{number}','compliment','random-star-wars-fact'])assert.equal(run('startActivityEffect({id:'+JSON.stringify(id)+'})'),null);});
+
+test('derby keeps starting lane numbers and uses the API finish order',async()=>{
+ const {ctx,run,output}=setup();ctx.result={Horses:{1:'Second',2:'Winner'},Middle:{1:'Second',2:'Winner'},End:{1:'Winner',2:'Second'}};
+ await run("var effect=startActivityEffect({id:'horse-race'});effect.settle(result)");
+ const board=output.firstChild.firstChild.children[1];
+ assert.equal(board.children.length,3);
+ assert.equal(board.children[1].firstChild.children[1].textContent,'Second');
+ assert.equal(board.children[2].firstChild.children[1].textContent,'Winner');
+ assert(board.children[2].classes.has('derby-winner'));
+ const secondTravel=board.children[1].children[1].firstChild.animations[0];
+ const winnerTravel=board.children[2].children[1].firstChild.animations[0];
+ assert(winnerTravel.options.duration<secondTravel.options.duration);
+ assert.equal(run('effect.target.firstChild.firstChild.textContent'),'Winner');
+});
