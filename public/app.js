@@ -35,7 +35,7 @@ function render(){
     const body=el('div','card-body');body.append(el('span','card-label',a.category==='Fortune'?'Fortune & luck':a.category==='Tools'?'Tools':a.category),el('h3','',a.name),el('p','',a.description));const bottom=el('div','card-bottom');const play=el('button','play','Open activity');play.setAttribute('aria-label',`Open ${a.name}`);play.onclick=()=>openActivity(a);bottom.append(play);body.append(bottom);card.append(art,body);$('cards').append(card);
   }
 }
-function openActivity(a){clearDice();selected=a;requestId++;$('modal-category').textContent=a.category==='Fortune'?'FORTUNE & LUCK':a.category.toUpperCase();$('modal-title').textContent=a.name;$('modal-description').textContent=a.description;$('activity-fields').replaceChildren();$('activity-result').replaceChildren();$('play-button').textContent=a.action;$('play-button').disabled=false;
+function openActivity(a){clearDice();clearActivityEffect();selected=a;requestId++;$('modal-category').textContent=a.category==='Fortune'?'FORTUNE & LUCK':a.category.toUpperCase();$('modal-title').textContent=a.name;$('modal-description').textContent=a.description;$('activity-fields').replaceChildren();$('activity-result').replaceChildren();$('play-button').textContent=a.action;$('play-button').disabled=false;
   for(const [name,label,type,placeholder] of a.fields||[]){const wrapper=el('label','',label);const input=el(type==='select'?'select':'input');input.name=name;input.required=true;if(type==='select'){placeholder.forEach(choice=>{const option=el('option','',choice[0].toUpperCase()+choice.slice(1));option.value=choice;input.append(option)})}else{input.type=type;input.placeholder=placeholder;if(type==='number'){input.step='1';input.min='-2147483648';input.max='2147483647'}}wrapper.append(input);$('activity-fields').append(wrapper)}
   $('activity-dialog').showModal();
 }
@@ -109,6 +109,92 @@ function renderDiceResult(result,container){
   container.append(summary);
 }
 
+
+let activeEffect=null;
+function clearActivityEffect(){if(activeEffect){activeEffect.cancel();activeEffect=null}}
+const effectKinds={'8Ball':'eight-ball','coinflip/{choice}':'coin','api/fortune-cookie':'cookie','horse-race':'race','pizza-topping':'pizza','planet':'planet','rubber_duck_fortune':'duck','break-reminder':'breathing'};
+function raceEntries(result){
+  if(!result.End||typeof result.End!=='object')return [];
+  return Object.entries(result.End).sort((a,b)=>Number(a[0])-Number(b[0])).map(([rank,name])=>({rank:Number(rank),name:String(name)}));
+}
+function startActivityEffect(activity){
+  clearActivityEffect();
+  const kind=effectKinds[activity.id];if(!kind)return null;
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const root=el('div','activity-effect effect-'+kind),art=el('div','effect-art');
+  art.setAttribute('aria-hidden','true');
+  const caption=el('p','effect-caption','Waiting for your result...'),output=el('div','effect-output');
+  root.append(art,caption,output);$('activity-result').replaceChildren(root);
+  const animations=[];let cancelled=false;
+  function animate(node,frames,options){if(reduced||cancelled)return Promise.resolve();const animation=node.animate(frames,options);animations.push(animation);return animation.finished.catch(()=>{})}
+  function loop(node,frames,duration){animate(node,frames,{duration,iterations:Infinity,easing:'ease-in-out'})}
+  if(kind==='coin'){
+    const coin=el('div','toss-coin');coin.append(el('span','coin-head','H'),el('span','coin-tail','T'));art.append(coin);
+    loop(coin,[{transform:'translateY(15px) rotateY(0deg)'},{transform:'translateY(-25px) rotateY(540deg)'},{transform:'translateY(15px) rotateY(1080deg)'}],1100);
+  }else if(kind==='eight-ball'){
+    const ball=el('div','fortune-ball');ball.append(el('span','','8'));art.append(ball);
+    loop(ball,[{transform:'translateX(0) rotate(0deg)'},{transform:'translateX(-14px) rotate(-15deg)'},{transform:'translateX(14px) rotate(15deg)'},{transform:'translateX(0) rotate(0deg)'}],650);
+  }else if(kind==='cookie'){
+    const cookie=el('div','fortune-cookie');cookie.append(el('div','cookie-half cookie-left'),el('div','cookie-half cookie-right'));art.append(cookie);
+    loop(cookie,[{transform:'rotate(-4deg)'},{transform:'rotate(4deg)'},{transform:'rotate(-4deg)'}],700);
+  }else if(kind==='pizza'){
+    const pizza=el('div','pizza-pie');for(let i=0;i<7;i++){const topping=el('i','pizza-dot');topping.style.left=(24+(i*31)%55)+'%';topping.style.top=(19+(i*23)%61)+'%';pizza.append(topping)}art.append(pizza);
+    loop(pizza,[{transform:'rotate(0)'},{transform:'rotate(360deg)'}],2300);
+  }else if(kind==='planet'){
+    art.append(el('div','orbit-path'),el('div','orbit-planet'),el('div','orbit-moon'));
+    loop(art.lastChild,[{transform:'rotate(0deg) translateX(65px)'},{transform:'rotate(360deg) translateX(65px)'}],3000);
+  }else if(kind==='duck'){
+    const duck=el('div','fortune-duck');duck.append(el('div','duck-head'),el('div','duck-wing'));art.append(el('div','duck-water'),duck);
+    loop(duck,[{transform:'translateY(0) rotate(-4deg)'},{transform:'translateY(-9px) rotate(4deg)'},{transform:'translateY(0) rotate(-4deg)'}],1800);
+  }else if(kind==='breathing'){
+    art.append(el('div','breathing-ring'));
+    caption.textContent='Take a slow breath while you wait.';
+    loop(art.firstChild,[{transform:'scale(.7)',opacity:.5},{transform:'scale(1)',opacity:1},{transform:'scale(.7)',opacity:.5}],5000);
+  }else{
+    art.append(el('div','race-loading','Setting up the race...'));
+  }
+  const effect={target:output,kind,
+    async settle(result){
+      if(cancelled)return;
+      const snapshot=art.firstChild?getComputedStyle(art.firstChild).transform:'none';
+      for(const animation of animations)animation.cancel();
+      root.classList.add('revealed');caption.textContent='';
+      if(kind==='coin'){
+        const side=String(result.result).toLowerCase();
+        if(!['heads','tails'].includes(side))throw new Error('The coin result could not be read. Please try again.');
+        const coin=art.firstChild,final='translateY(0) rotateY('+(side==='heads'?0:180)+'deg)';coin.style.transform=final;
+        await animate(coin,[{transform:snapshot},{transform:final}],{duration:900,easing:'cubic-bezier(.2,.7,.2,1)'});
+        caption.textContent=side[0].toUpperCase()+side.slice(1)+(typeof result.won==='boolean'?(result.won?' - you called it!':' - try another toss.'):'');
+      }else if(kind==='race'){
+        const entries=raceEntries(result);if(!entries.length)return;
+        art.replaceChildren();art.setAttribute('aria-hidden','false');art.classList.add('race-track');
+        const lanes=entries.map(entry=>{
+          const lane=el('div','race-lane'),name=el('span','race-name',entry.name),course=el('div','race-course'),horse=el('span','race-runner',String(Object.keys(result.Horses||{}).find(k=>result.Horses[k]===entry.name)||entry.rank));
+          course.append(horse);lane.append(name,course);art.append(lane);return {...entry,horse,course};
+        });
+        caption.textContent='And they are off!';
+        await Promise.all(lanes.map(entry=>{
+          const midRank=Object.keys(result.Middle||{}).find(k=>result.Middle[k]===entry.name);
+          const startRank=Object.keys(result.Horses||{}).find(k=>result.Horses[k]===entry.name);
+          const width=Math.max(0,entry.course.clientWidth-26),end='translateX('+width+'px)';entry.horse.style.transform=end;
+          return animate(entry.horse,[{transform:'translateX(0)'},{transform:'translateX('+width*(.15+(17-Number(startRank||entry.rank))*.008)+'px)',offset:.25},{transform:'translateX('+width*(.45+(17-Number(midRank||entry.rank))*.014)+'px)',offset:.6},{transform:end}],{duration:2400+entry.rank*85,easing:'linear'});
+        }));
+        if(cancelled)return;caption.textContent='Winner: '+entries[0].name;
+        output.append(el('ol','race-standings'));
+        for(const entry of entries)output.firstChild.append(el('li','',entry.name));
+      }else if(kind==='cookie'){
+        const cookie=art.firstChild;
+        await Promise.all([...cookie.children].map((half,i)=>{const final='translateX('+(i===0?-25:25)+'px) rotate('+(i===0?-22:22)+'deg)';half.style.transform=final;return animate(half,[{transform:'none'},{transform:final}],{duration:700,easing:'ease-out'})}));
+        caption.textContent='Your fortune';
+      }else{
+        await animate(art,[{opacity:.65,transform:'scale(.94)'},{opacity:1,transform:'scale(1)'}],{duration:450,easing:'ease-out'});
+      }
+    },
+    cancel(){cancelled=true;for(const animation of animations)animation.cancel();root.remove()}
+  };
+  activeEffect=effect;return effect;
+}
+
 function renderValue(value,container){
   if(value===null||typeof value!=='object'){container.append(el('div','',String(value??'No result returned.')));return}
   if(Array.isArray(value)){for(const item of value)renderValue(item,container);return}
@@ -119,12 +205,15 @@ function renderValue(value,container){
 $('play-form').addEventListener('submit',async event=>{
   event.preventDefault();const a=selected,id=++requestId;const data=new FormData(event.target);let path=a.id;const params=new URLSearchParams();for(const [key,value] of data){if(path.includes('{'+key+'}'))path=path.replace('{'+key+'}',encodeURIComponent(value));else if(a.query)params.set(key,value)}
   const diceRoll=a.id==='dice-roll'?throwDice():null;
-  $('play-button').disabled=true;$('play-button').textContent=diceRoll?'Rolling...':'Loading...';$('activity-result').textContent='Loading your result. This can take up to a minute.';
+  $('activity-result').textContent='Loading your result. This can take up to a minute.';
+  const effect=startActivityEffect(a);
+  $('play-button').disabled=true;$('play-button').textContent=diceRoll?'Rolling...':'Loading...';
   try{const response=await fetch('./api/backend/'+path+(params.size?'?'+params:''),{signal:AbortSignal.timeout(65000)});const text=await response.text();let result;try{result=JSON.parse(text)}catch{result={message:text}}if(!response.ok)throw new Error(result.error||result.message||`Something went wrong (${response.status}). Please try again.`);if(id!==requestId)return;if(diceRoll){await diceRoll.settle(result);if(id!==requestId)return;}
-    $('activity-result').replaceChildren();if(diceRoll)renderDiceResult(result,$('activity-result'));else renderValue(result,$('activity-result'));recent=[a.id,...recent.filter(v=>v!==a.id)].slice(0,30);persist();render();
-  }catch(error){if(diceRoll)diceRoll.cancel();if(id!==requestId)return;$('activity-result').replaceChildren(el('div','error',error.name==='TimeoutError'?'This is taking longer than expected. Please try again in a moment.':error.message))}finally{if(id===requestId){$('play-button').disabled=false;$('play-button').textContent=a.id==='dice-roll'?'Roll again':'Try again'}}
+    if(effect){await effect.settle(result);if(id!==requestId)return;if(effect.kind!=='race'||!raceEntries(result).length)renderValue(result,effect.target);}
+    else{$('activity-result').replaceChildren();if(diceRoll)renderDiceResult(result,$('activity-result'));else renderValue(result,$('activity-result'));}recent=[a.id,...recent.filter(v=>v!==a.id)].slice(0,30);persist();render();
+  }catch(error){if(effect)effect.cancel();if(diceRoll)diceRoll.cancel();if(id!==requestId)return;$('activity-result').replaceChildren(el('div','error',error.name==='TimeoutError'?'This is taking longer than expected. Please try again in a moment.':error.message))}finally{if(id===requestId){$('play-button').disabled=false;$('play-button').textContent=a.id==='dice-roll'?'Roll again':'Try again'}}
 });
-$('close-dialog').onclick=()=>$('activity-dialog').close();$('activity-dialog').addEventListener('close',()=>{requestId++;clearDice()});$('activity-dialog').addEventListener('click',event=>{if(event.target===$('activity-dialog')){const r=event.target.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)event.target.close()}});
+$('close-dialog').onclick=()=>$('activity-dialog').close();$('activity-dialog').addEventListener('close',()=>{requestId++;clearDice();clearActivityEffect()});$('activity-dialog').addEventListener('click',event=>{if(event.target===$('activity-dialog')){const r=event.target.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)event.target.close()}});
 document.querySelectorAll('[data-filter]').forEach(button=>button.onclick=()=>{filter=button.dataset.filter;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('selected',b===button));render()});
 document.querySelectorAll('[data-nav]').forEach(button=>button.onclick=()=>{view=button.dataset.nav;$('page-name').textContent=view;document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b===button));$('collection-title').textContent=view==='Explore'?'Activities':view==='Favorites'?'Favorites':'Recently played';$('collection-caption').textContent=view==='Favorites'?'Use the heart button to save an activity.':view==='Recent'?'Activities you have tried recently.':'Choose an activity to get started.';render()});
 $('search').addEventListener('input',render);$('surprise').onclick=()=>openActivity(activities[Math.floor(Math.random()*activities.length)]);$('reset').onclick=()=>{view='Explore';filter='All';$('search').value='';document.querySelector('[data-nav="Explore"]').click();document.querySelector('[data-filter="All"]').click()};document.addEventListener('keydown',event=>{if(event.key==='/'&&!$('activity-dialog').open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){event.preventDefault();$('search').focus()}});
