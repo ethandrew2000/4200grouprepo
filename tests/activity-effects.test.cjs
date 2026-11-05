@@ -19,7 +19,7 @@ for(const reduced of [false,true]){
  test('all effect types settle and clean up; reduced motion='+reduced,async()=>{
   const {ctx,run,output}=setup(reduced);
   const cases=[['8Ball',{answer:'Yes'}],['coinflip/{choice}',{result:'tails',won:false}],['api/fortune-cookie',{fortune:'Good luck'}],['horse-race',{End:{2:'Second',1:'Winner'},Middle:{1:'Second',2:'Winner'},Horses:{1:'Winner',2:'Second'}}],['pizza-topping',{topping:'Mushrooms'}],['planet',[{name:'Hoth'}]],['rubber_duck_fortune',{duck_advice:'quack'}],['break-reminder',{reminder:'Drink water'}]];
-  for(const [id,result] of cases){ctx.activity={id};ctx.result=result;run('var effect=startActivityEffect(activity)');await run('effect.settle(result)');const root=output.firstChild;assert(root.classes.has('revealed'));if(id==='coinflip/{choice}')assert.equal(root.firstChild.firstChild.style.transform,'translateY(0) rotateY(180deg)');if(id==='horse-race'){assert.equal(root.children[1].textContent,'Winner: Winner');assert.equal(run('effect.target.firstChild.firstChild.textContent'),'Winner')}
+  for(const [id,result] of cases){ctx.activity={id};ctx.result=result;run('var effect=startActivityEffect(activity)');await run('effect.settle(result)');const root=output.firstChild;assert(root.classes.has('revealed'));if(id==='coinflip/{choice}')assert.equal(root.firstChild.firstChild.style.transform,'translateY(0) rotateY(180deg)');if(id==='horse-race'){assert.equal(root.children[1].textContent,'Winner: Winner');assert.equal(output.firstChild.children[1].textContent,'Winner: Winner')}
    run('clearActivityEffect()');assert(root.removed);assert.equal(run('activeEffect'),null);
   }
  });
@@ -39,5 +39,5 @@ test('derby keeps starting lane numbers and uses the API finish order',async()=>
  const secondTravel=board.children[1].children[1].firstChild.animations[0];
  const winnerTravel=board.children[2].children[1].firstChild.animations[0];
  assert(winnerTravel.options.duration<secondTravel.options.duration);
- assert.equal(run('effect.target.firstChild.firstChild.textContent'),'Winner');
+ assert.equal(output.firstChild.children[1].textContent,'Winner: Winner');
 });

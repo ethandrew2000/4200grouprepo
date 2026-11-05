@@ -187,13 +187,12 @@ function startActivityEffect(activity){
         caption.textContent='And they are off!';root.classList.add('race-running');
         await Promise.all(lanes.map(entry=>{
           const midRank=Number(Object.keys(result.Middle||{}).find(k=>result.Middle[k]===entry.name)||entry.rank);
-          const width=Math.max(0,entry.course.clientWidth-65),end='translateX('+width+'px)';entry.horse.style.transform=end;
+          const width=Math.max(0,entry.course.clientWidth-entry.horse.clientWidth),end='translateX('+width+'px)';entry.horse.style.transform=end;
           loop(entry.figure,[{transform:'translateY(0) rotate(-2deg)'},{transform:'translateY(-4px) rotate(2deg)'},{transform:'translateY(0) rotate(-2deg)'}],280+entry.number*9);
           return animate(entry.horse,[{transform:'translateX(0)'},{transform:'translateX('+width*(.16+(17-entry.number)*.008)+'px)',offset:.22},{transform:'translateX('+width*(.44+(17-midRank)*.013)+'px)',offset:.58},{transform:'translateX('+width*.84+'px)',offset:.88},{transform:end}],{duration:5700+entry.rank*120,easing:'linear'}).then(()=>{if(!cancelled){entry.lane.classList.add('horse-finished');if(entry.rank===1){entry.lane.classList.add('derby-winner');caption.textContent='Winner: '+entry.name;}}});
         }));
         if(cancelled)return;for(const animation of animations)animation.cancel();root.classList.add('race-complete');caption.textContent='Winner: '+entries[0].name;
-        output.append(el('ol','race-standings'));
-        for(const entry of entries)output.firstChild.append(el('li','',entry.name));
+        for(const entry of lanes){entry.lane.firstChild.append(el('span','derby-place','#'+entry.rank));}
       }else if(kind==='cookie'){
         const cookie=art.firstChild;
         await Promise.all([...cookie.children].map((half,i)=>{const final='translateX('+(i===0?-25:25)+'px) rotate('+(i===0?-22:22)+'deg)';half.style.transform=final;return animate(half,[{transform:'none'},{transform:final}],{duration:700,easing:'ease-out'})}));
