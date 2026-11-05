@@ -1,4 +1,5 @@
 const activities = [
+  { id:'leaderboard', name:'Leaderboard', category:'Games', description:'See the top five players and their highest scores.', action:'Show leaderboard' },
   { id:'8Ball', name:'Magic 8 Ball', category:'Fortune', description:'Ask a question and get an answer from the Magic 8 Ball.', action:'Ask a question', fields:[['question','What’s on your mind?','text','Will today be a good day?']] },
   { id:'dice-roll', name:'Roll the Dice', category:'Games', description:'Roll a pair of dice.', action:'Roll the dice' },
   { id:'horse-race', name:'Horse Race', category:'Games', description:'Start a race and see which horse finishes first.', action:'Start the race' },
@@ -206,6 +207,24 @@ function startActivityEffect(activity){
   activeEffect=effect;return effect;
 }
 
+function renderLeaderboard(result,container){
+  const entries=result.entries ?? result.top;
+  if(!Array.isArray(entries)||entries.some(entry=>!entry||typeof entry.name!=='string'||!Number.isFinite(entry.score)))throw new Error('The leaderboard could not be read. Please try again.');
+  const board=el('section','leaderboard');board.setAttribute('aria-label','Top player scores');
+  board.append(el('h3','','Top players'),el('p','leaderboard-caption','Highest score per player · Top five'));
+  if(!entries.length){board.append(el('p','leaderboard-empty','No scores yet. Check back after someone submits a score.'));}
+  else{
+    const list=el('ol','leaderboard-list');
+    entries.forEach((entry,index)=>{
+      const row=el('li','leaderboard-entry');
+      row.append(el('span','leaderboard-rank','#'+(entry.rank ?? index+1)),el('span','leaderboard-name',entry.name),el('span','leaderboard-score',entry.score.toLocaleString()));
+      list.append(row);
+    });
+    board.append(list);
+  }
+  container.append(board);
+}
+
 function renderValue(value,container){
   if(value===null||typeof value!=='object'){container.append(el('div','',String(value??'No result returned.')));return}
   if(Array.isArray(value)){for(const item of value)renderValue(item,container);return}
@@ -221,7 +240,7 @@ $('play-form').addEventListener('submit',async event=>{
   $('play-button').disabled=true;$('play-button').textContent=diceRoll?'Rolling...':'Loading...';
   try{const response=await fetch('./api/backend/'+path+(params.size?'?'+params:''),{signal:AbortSignal.timeout(65000)});const text=await response.text();let result;try{result=JSON.parse(text)}catch{result={message:text}}if(!response.ok)throw new Error(result.error||result.message||`Something went wrong (${response.status}). Please try again.`);if(id!==requestId)return;if(diceRoll){await diceRoll.settle(result);if(id!==requestId)return;}
     if(effect){await effect.settle(result);if(id!==requestId)return;if(effect.kind!=='race'||!raceEntries(result).length)renderValue(result,effect.target);}
-    else{$('activity-result').replaceChildren();if(diceRoll)renderDiceResult(result,$('activity-result'));else renderValue(result,$('activity-result'));}recent=[a.id,...recent.filter(v=>v!==a.id)].slice(0,30);persist();render();
+    else{$('activity-result').replaceChildren();if(diceRoll)renderDiceResult(result,$('activity-result'));else if(a.id==='leaderboard')renderLeaderboard(result,$('activity-result'));else renderValue(result,$('activity-result'));}recent=[a.id,...recent.filter(v=>v!==a.id)].slice(0,30);persist();render();
   }catch(error){if(effect)effect.cancel();if(diceRoll)diceRoll.cancel();if(id!==requestId)return;$('activity-result').replaceChildren(el('div','error',error.name==='TimeoutError'?'This is taking longer than expected. Please try again in a moment.':error.message))}finally{if(id===requestId){$('play-button').disabled=false;$('play-button').textContent=a.id==='dice-roll'?'Roll again':'Try again'}}
 });
 $('close-dialog').onclick=()=>$('activity-dialog').close();$('activity-dialog').addEventListener('close',()=>{requestId++;clearDice();clearActivityEffect()});$('activity-dialog').addEventListener('click',event=>{if(event.target===$('activity-dialog')){const r=event.target.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)event.target.close()}});
