@@ -17,7 +17,8 @@ const activities = [
   { id:'pizza-topping', name:'Pizza Toppings', category:'Discover', description:'Pick a random topping for your next pizza.', action:'Pick a topping' },
   { id:'even-or-odd/{number}', key:'even-or-odd', name:'Even or Odd', category:'Tools', description:'Check whether a whole number is even or odd.', action:'Check my number', fields:[['number','Whole number','number','42']] },
   { id:'rubber_duck_fortune', name:'Duck Fortune', category:'Fortune', description:'Get a fortune from the rubber duck.', action:'Consult the duck' },
-  { id:'break-reminder', name:'Break Reminder', category:'Tools', description:'Get a reminder to take a break.', action:'Take a break' }
+  { id:'break-reminder', name:'Break Reminder', category:'Tools', description:'Get a reminder to take a break.', action:'Take a break' },
+  { id:'unhelpful_hint', name:'Unhelpful Hints', category:'Discover', description:'Need help? Look elsewhere!', action:'Give me a hint' },
 ];
 const $=id=>document.getElementById(id);
 function readStored(key){try{return JSON.parse(localStorage.getItem(key)||'[]')}catch{return []}}
@@ -225,6 +226,15 @@ function renderLeaderboard(result,container){
   container.append(board);
 }
 
+function renderUnhelpfulHint(result,container){
+  if(!result||typeof result.hint!=='string')throw new Error('The hint could not be read. Please try again.');
+  const card=el('section','hint-result');
+  card.setAttribute('aria-label','Unhelpful hint');
+  card.append(el('p','hint-text',result.hint));
+  if(result.helpful===false)card.append(el('p','hint-caption','Helpfulness: not guaranteed.'));
+  container.append(card);
+}
+
 function renderValue(value,container){
   if(value===null||typeof value!=='object'){container.append(el('div','',String(value??'No result returned.')));return}
   if(Array.isArray(value)){for(const item of value)renderValue(item,container);return}
@@ -240,7 +250,7 @@ $('play-form').addEventListener('submit',async event=>{
   $('play-button').disabled=true;$('play-button').textContent=diceRoll?'Rolling...':'Loading...';
   try{const response=await fetch('./api/backend/'+path+(params.size?'?'+params:''),{signal:AbortSignal.timeout(65000)});const text=await response.text();let result;try{result=JSON.parse(text)}catch{result={message:text}}if(!response.ok)throw new Error(result.error||result.message||`Something went wrong (${response.status}). Please try again.`);if(id!==requestId)return;if(diceRoll){await diceRoll.settle(result);if(id!==requestId)return;}
     if(effect){await effect.settle(result);if(id!==requestId)return;if(effect.kind!=='race'||!raceEntries(result).length)renderValue(result,effect.target);}
-    else{$('activity-result').replaceChildren();if(diceRoll)renderDiceResult(result,$('activity-result'));else if(a.id==='leaderboard')renderLeaderboard(result,$('activity-result'));else renderValue(result,$('activity-result'));}recent=[a.id,...recent.filter(v=>v!==a.id)].slice(0,30);persist();render();
+    else{$('activity-result').replaceChildren();if(diceRoll)renderDiceResult(result,$('activity-result'));else if(a.id==='leaderboard')renderLeaderboard(result,$('activity-result'));else if(a.id==='unhelpful_hint')renderUnhelpfulHint(result,$('activity-result'));else renderValue(result,$('activity-result'));}recent=[a.id,...recent.filter(v=>v!==a.id)].slice(0,30);persist();render();
   }catch(error){if(effect)effect.cancel();if(diceRoll)diceRoll.cancel();if(id!==requestId)return;$('activity-result').replaceChildren(el('div','error',error.name==='TimeoutError'?'This is taking longer than expected. Please try again in a moment.':error.message))}finally{if(id===requestId){$('play-button').disabled=false;$('play-button').textContent=a.id==='dice-roll'?'Roll again':'Try again'}}
 });
 $('close-dialog').onclick=()=>$('activity-dialog').close();$('activity-dialog').addEventListener('close',()=>{requestId++;clearDice();clearActivityEffect()});$('activity-dialog').addEventListener('click',event=>{if(event.target===$('activity-dialog')){const r=event.target.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)event.target.close()}});
