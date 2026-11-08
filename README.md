@@ -1,6 +1,6 @@
 # 4200 Arcade
 
-A responsive frontend for the IT 4200 Fall 2026 class API. Includes 19 activities, category filters, search, favorites, recent activity, accessible activity dialogs, and live API responses.
+A responsive frontend for the IT 4200 Fall 2026 class API. Includes 20 activities, category filters, search, favorites, recent activity, accessible activity dialogs, and live API responses.
 
 ## Run locally
 
